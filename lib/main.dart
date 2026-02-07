@@ -42,6 +42,7 @@ class AsyncDemo extends StatefulWidget {
 //Owner
 class _AsyncDemoState extends State<AsyncDemo> {
   AsyncState<String> state = const Loading();
+  int _operationId = 0;
 
   @override
   void initState() {
@@ -50,10 +51,18 @@ class _AsyncDemoState extends State<AsyncDemo> {
   }
 
   Future<void> _loadData() async {
+    final int myOperationId = ++_operationId;
+    setState(() {
+      state = const Loading();
+    });
+
+    final delay = DateTime.now().millisecondsSinceEpoch % 3 + 1;
+
     try {
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(Duration(seconds: delay));
+      if (myOperationId != _operationId) return;
       setState(() {
-        state = const Data("Hello from the future(2s)");
+        state = Data("Finished in ${delay}s");
       });
     } catch (e) {
       setState(() {
@@ -69,7 +78,12 @@ class _AsyncDemoState extends State<AsyncDemo> {
 
   Widget _buildFromState() {
     return Scaffold(
-      appBar: AppBar(title: const Text("Async Truth Demo")),
+      appBar: AppBar(
+        title: const Text("Async Truth Demo"),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+        ],
+      ),
       body: Center(
         child: switch (state) {
           Loading() => const CircularProgressIndicator(),
@@ -78,7 +92,7 @@ class _AsyncDemoState extends State<AsyncDemo> {
             style: const TextStyle(fontSize: 20),
           ),
           Error(:final error) => Text(
-            "Error:$error",
+            "Error: $error",
             style: const TextStyle(color: Colors.red),
           ),
         },
