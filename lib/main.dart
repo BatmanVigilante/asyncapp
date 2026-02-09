@@ -13,6 +13,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
 //AsyncState (Mutually Exclusive States)
 sealed class AsyncState<T> {
   const AsyncState();
