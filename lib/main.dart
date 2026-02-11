@@ -39,7 +39,43 @@ class Error<T> extends AsyncState<T> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// State Owner
+// Async Controller (Owns Time + Truth)
+// ─────────────────────────────────────────────────────────────
+
+class AsyncController extends ChangeNotifier {
+  AsyncState<String> state = const Loading();
+  int _operationId = 0;
+
+  Future<void> load() async {
+    final int myOperation = ++_operationId;
+
+    final previousData =
+        state is Data<String> ? (state as Data<String>).value : null;
+
+    state = Loading(previousData);
+    notifyListeners();
+
+    final delay = DateTime.now().millisecondsSinceEpoch % 3 + 1;
+
+    try {
+      await Future.delayed(Duration(seconds: delay));
+
+      // 🔐 Ownership check
+      if (myOperation != _operationId) return;
+
+      state = Data("Finished in ${delay}s");
+      notifyListeners();
+    } catch (e) {
+      if (myOperation != _operationId) return;
+
+      state = Error(e);
+      notifyListeners();
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// UI (Pure Projection of Truth)
 // ─────────────────────────────────────────────────────────────
 
 class AsyncDemo extends StatefulWidget {
@@ -50,81 +86,64 @@ class AsyncDemo extends StatefulWidget {
 }
 
 class _AsyncDemoState extends State<AsyncDemo> {
-  AsyncState<String> state = const Loading();
-  int _operationId = 0;
+  late final AsyncController controller;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    controller = AsyncController();
+    controller.load();
   }
 
-  Future<void> _loadData() async {
-    final int myOperation = ++_operationId;
-
-    final previousData =
-        state is Data<String> ? (state as Data<String>).value : null;
-
-    setState(() {
-      state = Loading(previousData);
-    });
-
-    final delay = DateTime.now().millisecondsSinceEpoch % 3 + 1;
-
-    try {
-      await Future.delayed(Duration(seconds: delay));
-
-      // 🔐 Ownership check
-      if (myOperation != _operationId) return;
-
-      setState(() {
-        state = Data("Finished in ${delay}s");
-      });
-    } catch (e) {
-      if (myOperation != _operationId) return;
-
-      setState(() {
-        state = Error(e);
-      });
-    }
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Async Truth Demo"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final state = controller.state;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text("Async Truth Demo"),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: controller.load,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Center(
-        child: switch (state) {
-          Loading(:final previous) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (previous != null)
-                  Text(
-                    previous,
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                const SizedBox(height: 12),
-                const CircularProgressIndicator(),
-              ],
-            ),
-          Data(:final value) => Text(
-              value,
-              style: const TextStyle(fontSize: 20),
-            ),
-          Error(:final error) => Text(
-              "Error: $error",
-              style: const TextStyle(color: Colors.red),
-            ),
-        },
-      ),
+          body: Center(
+            child: switch (state) {
+              Loading(:final previous) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (previous != null)
+                      Text(
+                        previous,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                    const SizedBox(height: 12),
+                    const CircularProgressIndicator(),
+                  ],
+                ),
+              Data(:final value) => Text(
+                  value,
+                  style: const TextStyle(fontSize: 20),
+                ),
+              Error(:final error) => Text(
+                  "Error: $error",
+                  style: const TextStyle(color: Colors.red),
+                ),
+            },
+          ),
+        );
+      },
     );
   }
 }
